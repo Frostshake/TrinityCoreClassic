@@ -71,12 +71,8 @@ public:
 
         std::unique_ptr<EVP_MD, EVP_MD_Deleter> GetGenerator() const override;
 
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
         OSSL_LIB_CTX* GetLib() const override;
         std::unique_ptr<OSSL_PARAM[]> GetParams() const override;
-#else
-        void PostInitCustomizeContext(EVP_MD_CTX* ctx) override;
-#endif
 
     private:
         uint8 const* _key;
@@ -100,15 +96,8 @@ public:
     {
         return this->Sign(message.data(), message.size(), generator, output);
     }
-    template <std::size_t N>
-    bool SignHash(std::array<uint8, N> const& message, DigestGenerator& generator, std::vector<uint8>& output)
-    {
-        return this->SignHash(message.data(), message.size(), generator, output);
-    }
 
     bool Sign(uint8 const* message, std::size_t messageLength, DigestGenerator& generator, std::vector<uint8>& output);
-
-    bool SignHash(uint8 const* message, std::size_t messageLength, DigestGenerator& generator, std::vector<uint8>& output);
 
 private:
     EVP_MD_CTX* _ctx = nullptr;
