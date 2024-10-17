@@ -357,79 +357,50 @@ void Player::UpdateAttackPowerAndDamage(bool ranged)
     float val2 = 0.0f;
     float level = float(GetLevel());
 
-    ChrClassesEntry const* entry = sChrClassesStore.AssertEntry(GetClass());
     UnitMods unitMod = ranged ? UNIT_MOD_ATTACK_POWER_RANGED : UNIT_MOD_ATTACK_POWER;
 
-    if (!HasAuraType(SPELL_AURA_OVERRIDE_ATTACK_POWER_BY_SP_PCT))
+    if (ranged)
     {
-        if (!ranged)
-        {
-            float strengthValue = std::max(GetStat(STAT_STRENGTH) * entry->AttackPowerPerStrength, 0.0f);
-            float agilityValue = std::max(GetStat(STAT_AGILITY) * entry->AttackPowerPerAgility, 0.0f);
-
-            SpellShapeshiftFormEntry const* form = sSpellShapeshiftFormStore.LookupEntry(GetShapeshiftForm());
-            // Directly taken from client, SHAPESHIFT_FLAG_AP_FROM_STRENGTH ?
-            if (form && form->Flags & 0x20)
-                agilityValue += std::max(GetStat(STAT_AGILITY) * entry->AttackPowerPerStrength, 0.0f);
-
-            val2 = strengthValue + agilityValue;
-        }
-        else
-            val2 = (level + std::max(GetStat(STAT_AGILITY), 0.0f)) * entry->RangedAttackPowerPerAgility;
+        val2 = GetStat(STAT_AGILITY) - 10.0f;
     }
     else
     {
-        int32 minSpellPower = m_activePlayerData->ModHealingDonePos;
-        for (int i = SPELL_SCHOOL_HOLY; i < MAX_SPELL_SCHOOL; ++i)
-            minSpellPower = std::min(minSpellPower, m_activePlayerData->ModDamageDonePos[i]);
-
-        val2 = CalculatePct(float(minSpellPower), *m_activePlayerData->OverrideAPBySpellPowerPercent);
+        switch (GetClass())
+        {
+            case CLASS_MAGE:
+                val2 = GetStat(STAT_STRENGTH) - 10.0f;
+                break;
+            case CLASS_ROGUE:
+                val2 = (GetStat(STAT_STRENGTH) - 10.0f) + GetStat(STAT_AGILITY);
+                break;
+            default:
+                val2 = (GetStat(STAT_STRENGTH) - 10.0f) * 2.f;
+                break;
+        }
     }
 
     SetStatFlatModifier(unitMod, BASE_VALUE, val2);
 
-    float base_attPower = GetFlatModifierValue(unitMod, BASE_VALUE) * GetPctModifierValue(unitMod, BASE_PCT);
+    float base_attPower  = GetFlatModifierValue(unitMod, BASE_VALUE) * GetPctModifierValue(unitMod, BASE_PCT);
     float attPowerMod = GetFlatModifierValue(unitMod, TOTAL_VALUE);
     float attPowerMultiplier = GetPctModifierValue(unitMod, TOTAL_PCT) - 1.0f;
 
-    if (ranged)
-    {
-        SetRangedAttackPower(int32(base_attPower));
+    SetRangedAttackPower(int32(base_attPower));
+    SetAttackPower(int32(base_attPower));
+    
+    if (attPowerMod >= 0)
         SetRangedAttackPowerModPos(int32(attPowerMod));
-        SetRangedAttackPowerMultiplier(attPowerMultiplier);
-    }
-    else
-    {
-        SetAttackPower(int32(base_attPower));
-        SetAttackPowerModPos(int32(attPowerMod));
-        SetAttackPowerMultiplier(attPowerMultiplier);
-    }
+    if (attPowerMod <= 0)
+        SetRangedAttackPowerModNeg(int32(attPowerMod));
 
-    Pet* pet = GetPet();                                //update pet's AP
-    Guardian* guardian = GetGuardianPet();
-    //automatically update weapon damage after attack power modification
-    if (ranged)
-    {
-        UpdateDamagePhysical(RANGED_ATTACK);
-        if (pet && pet->IsHunterPet()) // At ranged attack change for hunter pet
-            pet->UpdateAttackPowerAndDamage();
-    }
-    else
+    // automatically update weapon damage after attack power modification
+    if (!ranged)
     {
         UpdateDamagePhysical(BASE_ATTACK);
-        if (Item* offhand = GetWeaponForAttack(OFF_ATTACK, true))
-            if (CanDualWield() || offhand->GetTemplate()->HasFlag(ITEM_FLAG3_ALWAYS_ALLOW_DUAL_WIELD))
-                UpdateDamagePhysical(OFF_ATTACK);
-
-        if (HasAuraType(SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT))
-            UpdateSpellDamageAndHealingBonus();
-
-        if (pet && pet->IsPetGhoul()) // At melee attack power change for DK pet
-            pet->UpdateAttackPowerAndDamage();
-
-        if (guardian && guardian->IsSpiritWolf()) // At melee attack power change for Shaman feral spirit
-            guardian->UpdateAttackPowerAndDamage();
+        UpdateDamagePhysical(OFF_ATTACK);
     }
+    else
+        UpdateDamagePhysical(RANGED_ATTACK);
 }
 
 void Player::CalculateMinMaxDamage(WeaponAttackType attType, bool normalized, bool addTotalPct, float& minDamage, float& maxDamage) const
@@ -449,47 +420,55 @@ void Player::CalculateMinMaxDamage(WeaponAttackType attType, bool normalized, bo
             unitMod = UNIT_MOD_DAMAGE_RANGED;
             break;
     }
+    float att_speed = GetAPMultiplier(attType, normalized);
 
-    float attackPowerMod = std::max(GetAPMultiplier(attType, normalized), 0.25f);
-
-    float baseValue  = GetFlatModifierValue(unitMod, BASE_VALUE) + GetTotalAttackPowerValue(attType, false) / 3.5f * attackPowerMod;
+    float baseValue  = GetFlatModifierValue(unitMod, BASE_VALUE) + GetTotalAttackPowerValue(attType, false) / 14.0f * att_speed;
     float basePct    = GetPctModifierValue(unitMod, BASE_PCT);
     float totalValue = GetFlatModifierValue(unitMod, TOTAL_VALUE);
-    float totalPct   = addTotalPct ? GetPctModifierValue(unitMod, TOTAL_PCT) : 1.0f;
+    float totalPct   = GetPctModifierValue(unitMod, TOTAL_PCT);
 
     float weaponMinDamage = GetWeaponDamageRange(attType, MINDAMAGE);
     float weaponMaxDamage = GetWeaponDamageRange(attType, MAXDAMAGE);
 
-    float versaDmgMod = 1.0f;
+    /*float versaDmgMod = 1.0f;
 
-    AddPct(versaDmgMod, GetRatingBonusValue(CR_VERSATILITY_DAMAGE_DONE) + float(GetTotalAuraModifier(SPELL_AURA_MOD_VERSATILITY)));
+    AddPct(versaDmgMod, GetRatingBonusValue(CR_VERSATILITY_DAMAGE_DONE) + float(GetTotalAuraModifier(SPELL_AURA_MOD_VERSATILITY)));*/
 
     SpellShapeshiftFormEntry const* shapeshift = sSpellShapeshiftFormStore.LookupEntry(GetShapeshiftForm());
     if (shapeshift && shapeshift->CombatRoundTime)
     {
-        weaponMinDamage = weaponMinDamage * shapeshift->CombatRoundTime / 1000.0f / attackPowerMod;
-        weaponMaxDamage = weaponMaxDamage * shapeshift->CombatRoundTime / 1000.0f / attackPowerMod;
+        uint32 lvl = GetLevel();
+        if (lvl > 60)
+            lvl = 60;
+
+        weaponMinDamage = lvl * 0.85f * att_speed;
+        weaponMaxDamage = lvl * 1.25f * att_speed;
     }
     else if (!CanUseAttackType(attType)) // check if player not in form but still can't use (disarm case)
     {
-        // cannot use ranged/off attack, set values to 0
-        if (attType != BASE_ATTACK)
-        {
-            minDamage = 0;
-            maxDamage = 0;
-            return;
-        }
         weaponMinDamage = BASE_MINDAMAGE;
         weaponMaxDamage = BASE_MAXDAMAGE;
     }
     else if (attType == RANGED_ATTACK)
     {
-        weaponMinDamage += GetAmmoDPS() * attackPowerMod;
-        weaponMaxDamage += GetAmmoDPS() * attackPowerMod;
+        //todo
+        /*totalValue += GetEnchantmentModifier(attType);
+        if (attType == RANGED_ATTACK)                      // add ammo DPS to ranged damage
+        {
+            auto ammoDps = GetAmmoDPS();
+            weaponMinDamage += ammoDps.first * att_speed;
+            weaponMaxDamage += ammoDps.second * att_speed;
+        }*/
+
+        /*if (index != 0)
+        {
+            baseValue = 0.0f;
+            totalValue = 0.0f;
+        }*/
     }
 
-    minDamage = ((weaponMinDamage + baseValue) * basePct + totalValue) * totalPct * versaDmgMod;
-    maxDamage = ((weaponMaxDamage + baseValue) * basePct + totalValue) * totalPct * versaDmgMod;
+    minDamage = ((weaponMinDamage + baseValue) * basePct + totalValue) * totalPct;
+    maxDamage = ((weaponMaxDamage + baseValue) * basePct + totalValue) * totalPct;
 }
 
 void Player::UpdateDefenseBonusesMod()

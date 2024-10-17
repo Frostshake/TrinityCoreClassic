@@ -238,13 +238,19 @@ float ItemTemplate::GetDPS(uint32 itemLevel) const
 
 void ItemTemplate::GetDamage(uint32 itemLevel, float& minDamage, float& maxDamage) const
 {
+    if (GetClass() != ITEM_CLASS_WEAPON)
+        return;
+
+    uint16 _delay = GetDelay();
+
     minDamage = maxDamage = 0.0f;
-    float dps = GetDPS(itemLevel);
-    if (dps > 0.0f)
-    {
-        float avgDamage = dps * GetDelay() * 0.001f;
-        minDamage = (GetDmgVariance() * -0.5f + 1.0f) * avgDamage;
-        maxDamage = floor(float(avgDamage * (GetDmgVariance() * 0.5f + 1.0f) + 0.5f));
+
+    for (const float& dmg : GetMinDamage()) {
+        minDamage += dmg / _delay * 1000.0f;
+    }
+
+    for (const float& dmg : GetMaxDamage()) {
+        maxDamage += dmg / _delay * 1000.0f;
     }
 }
 

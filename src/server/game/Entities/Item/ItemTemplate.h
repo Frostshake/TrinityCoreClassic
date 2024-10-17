@@ -767,6 +767,8 @@ struct TC_GAME_API ItemTemplate
     uint32 GetScalingStatContentTuning() const { return 1; /* ExtendedData->ContentTuningID; */ } 
     uint32 GetPlayerLevelToItemLevelCurveId() const { return 1;/* ExtendedData->PlayerLevelToItemLevelCurveID */ }
     uint32 GetDamageType() const { return ExtendedData->DamageType; }
+    std::array<uint16, 5> GetMinDamage() const { return ExtendedData->MinDamage; }
+    std::array<uint16, 5> GetMaxDamage() const { return ExtendedData->MaxDamage; }
     uint32 GetDelay() const { return ExtendedData->ItemDelay; }
     float GetRangedModRange() const { return ExtendedData->ItemRange; }
     ItemBondingType GetBonding() const { return ItemBondingType(ExtendedData->Bonding); }

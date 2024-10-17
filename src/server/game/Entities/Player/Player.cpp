@@ -8130,9 +8130,11 @@ void Player::_ApplyWeaponDamage(uint8 slot, Item* item, bool apply)
         SetBaseWeaponDamage(attType, MAXDAMAGE, damage);
     }
 
-    SpellShapeshiftFormEntry const* shapeshift = sSpellShapeshiftFormStore.LookupEntry(GetShapeshiftForm());
-    if (proto->GetDelay() && !(shapeshift && shapeshift->CombatRoundTime))
+    if (proto->GetDelay() && !IsInFeralForm())
         SetBaseAttackTime(attType, apply ? proto->GetDelay() : BASE_ATTACK_TIME);
+
+    if (IsInFeralForm())
+        return;
 
     if (CanModifyStats() && (damage || proto->GetDelay()))
         UpdateDamagePhysical(attType);
