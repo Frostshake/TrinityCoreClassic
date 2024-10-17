@@ -1174,6 +1174,8 @@ class TC_GAME_API Player : public Unit, public GridObject<Player>
         void SendTransferAborted(uint32 mapid, TransferAbortReason reason, uint8 arg = 0, int32 mapDifficultyXConditionID = 0) const;
         void SendInstanceResetWarning(uint32 mapid, Difficulty difficulty, uint32 time, bool welcome) const;
 
+        float GetAttackPowerFromStrengthAndAgility(bool ranged, float strength, float agility) const;
+
         bool CanInteractWithQuestGiver(Object* questGiver) const;
         Creature* GetNPCIfCanInteractWith(ObjectGuid const& guid, NPCFlags npcFlags, NPCFlags2 npcFlags2) const;
         GameObject* GetGameObjectIfCanInteractWith(ObjectGuid const& guid) const;

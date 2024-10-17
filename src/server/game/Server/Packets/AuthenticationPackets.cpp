@@ -337,17 +337,16 @@ std::array<uint8, 16> constexpr EnableEncryptionSeed = { 0x90, 0x9C, 0xD0, 0x50,
 
 WorldPacket const* WorldPackets::Auth::EnterEncryptedMode::Write()
 {
-    Trinity::Crypto::HMAC_SHA256 hash(std::data(EncryptionKey), 16);
-    hash.UpdateData(reinterpret_cast<uint8 const*>(&Enabled), 1);
-    hash.UpdateData(std::data(EnableEncryptionSeed), 16);
-    hash.Finalize();
+    std::array<uint8, 17> msg{};
+    msg[0] = Enabled ? 1 : 0;
+    std::copy_n(std::begin(EnableEncryptionSeed), std::size(EnableEncryptionSeed), &msg[1]);
 
     Trinity::Crypto::RsaSignature rsa(*ConnectToRSA);
-    Trinity::Crypto::RsaSignature::SHA256 digestGenerator;
+    Trinity::Crypto::RsaSignature::HMAC_SHA256 digestGenerator(EncryptionKey, 16);
     std::vector<uint8> signature;
 
-    rsa.SignHash(hash.GetDigest(), digestGenerator, signature);
-    
+    rsa.Sign(msg, digestGenerator, signature);
+
     _worldPacket.append(signature.data(), signature.size());
     _worldPacket.WriteBit(Enabled);
     _worldPacket.FlushBits();
