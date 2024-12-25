@@ -3742,15 +3742,60 @@ void AuraEffect::HandleAuraModIncreaseHealth(AuraApplication const* aurApp, uint
         return;
 
     Unit* target = aurApp->GetTarget();
+    if (!target)
+    {
+        return;
+    }
 
-    int32 const amt = apply ? GetAmount() : -GetAmount();
-    if (amt < 0)
-        target->ModifyHealth(std::max<int32>(1 - target->GetHealth(), amt));
+    if (GetSpellInfo()->Id == 12976)
+    {
+        uint32 originalMaxHealth = target->GetMaxHealth();
+        int32 bonusHealth = originalMaxHealth * 0.30;
 
-    target->HandleStatFlatModifier(UNIT_MOD_HEALTH, TOTAL_VALUE, GetAmount(), apply);
+        int32 storedBonus = GetAmount();
+        if (apply)
+        {
+            if (storedBonus == 0)
+                const_cast<AuraEffect*>(this)->SetAmount(bonusHealth);
 
-    if (amt > 0)
-        target->ModifyHealth(amt);
+            target->HandleStatFlatModifier(UNIT_MOD_HEALTH, TOTAL_VALUE, bonusHealth, apply);
+
+            if (target->GetHealth() == originalMaxHealth)
+            {
+                target->SetHealth(target->GetMaxHealth());
+            }
+            else
+            {
+                target->ModifyHealth(bonusHealth);
+            }
+        }
+        else
+        {
+            bonusHealth = GetAmount();
+
+            if (target->GetHealth() > bonusHealth)
+                target->ModifyHealth(-bonusHealth);
+            else if (target->IsAlive())
+                target->SetHealth(1);
+
+            target->HandleStatFlatModifier(UNIT_MOD_HEALTH, TOTAL_VALUE, bonusHealth, apply);
+            }
+        return;
+    }
+
+    int32 baseAmount = GetAmount();
+    int32 amount = baseAmount == 0 ? target->GetMaxHealth() * 0.30 : baseAmount;
+    int32 amt = apply ? amount : -amount;
+
+    target->HandleStatFlatModifier(UNIT_MOD_HEALTH, TOTAL_VALUE, amount, apply);
+    if (apply)
+    {
+        target->ModifyHealth(amount);
+    }
+    else
+    {
+        target->SetHealth(std::max<int32>(target->GetHealth(), 1));
+    }
 }
 
 void AuraEffect::HandleAuraModIncreaseMaxHealth(AuraApplication const* aurApp, uint8 mode, bool apply) const
