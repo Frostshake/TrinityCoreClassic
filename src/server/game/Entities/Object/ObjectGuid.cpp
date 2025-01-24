@@ -23,6 +23,7 @@
 #include "Realm.h"
 #include "Util.h"
 #include "World.h"
+#include <charconv>
 
 static_assert(sizeof(ObjectGuid) == sizeof(uint64) * 2, "ObjectGuid must be exactly 16 bytes");
 

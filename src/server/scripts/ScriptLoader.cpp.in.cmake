@@ -33,7 +33,7 @@ extern "C" {
 /// Exposed in script modules to return the script module revision hash.
 TC_SCRIPT_API char const* GetScriptModuleRevisionHash()
 {
-    return _HASH;
+    return TRINITY_GIT_COMMIT_HASH;
 }
 
 /// Exposed in script module to return the name of the script module

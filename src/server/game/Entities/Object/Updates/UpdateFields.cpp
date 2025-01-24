@@ -141,7 +141,7 @@ namespace UF
                 }
             }
 
-            template<typename T, uint32 Size, uint32 Index, uint32 Offset>
+            template<typename T, std::size_t Size, uint32 Index, uint32 Offset>
             void Write(UpdateFieldArray<T, Size, Index, Offset>const& value, UpdateFieldFlag fieldFlags)
             {
                 static_assert(Offset == 0); // array only works if blocktype aligned.
