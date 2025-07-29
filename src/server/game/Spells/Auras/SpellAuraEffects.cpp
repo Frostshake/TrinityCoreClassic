@@ -1924,6 +1924,15 @@ void AuraEffect::HandleAuraTransform(AuraApplication const* aurApp, uint8 mode, 
         if (!transformSpellInfo || !GetSpellInfo()->IsPositive() || transformSpellInfo->IsPositive())
         {
             target->SetTransformSpell(GetId());
+            //  apply Polymorph Heal Effect when Polymorph is cast
+            if (GetId() == 118 || GetId() == 12824 || GetId() == 12825 || GetId() == 12826 || GetId() == 28271 || GetId() == 28272)
+            {
+                if (!target->HasAura(12939))
+                {
+                    target->CastSpell(target, 12939, true);
+                    TC_LOG_INFO("spells", "Polymorph applied, forcing Polymorph Heal Effect (12939) on {}", target->GetName().c_str());
+                }
+            }
             // special case (spell specific functionality)
             if (GetMiscValue() == 0)
             {
@@ -2103,6 +2112,13 @@ void AuraEffect::HandleAuraTransform(AuraApplication const* aurApp, uint8 mode, 
     }
     else
     {
+        //  remove Polymorph Heal Effect when Polymorph ends
+        if (target->HasAura(12939))
+        {
+            target->RemoveAurasDueToSpell(12939);
+            TC_LOG_INFO("spells", "Polymorph ended, removing Polymorph Heal Effect (12939) from {}", target->GetName().c_str());
+        }
+
         // HandleEffect(this, AURA_EFFECT_HANDLE_SEND_FOR_CLIENT, true) will reapply it if need
         if (target->GetTransformSpell() == GetId())
             target->SetTransformSpell(0);
@@ -5854,7 +5870,7 @@ void AuraEffect::HandlePeriodicHealthFunnelAuraTick(Unit* target, Unit* caster) 
 
 void AuraEffect::HandlePeriodicHealAurasTick(Unit* target, Unit* caster) const
 {
-    if (!target->IsAlive())
+    if (!target || !caster || !target->IsAlive())
         return;
 
     if (target->HasUnitState(UNIT_STATE_ISOLATED))
@@ -5869,7 +5885,7 @@ void AuraEffect::HandlePeriodicHealAurasTick(Unit* target, Unit* caster) const
 
     uint32 stackAmountForBonuses = !GetSpellEffectInfo().EffectAttributes.HasFlag(SpellEffectAttributes::NoScaleWithStack) ? GetBase()->GetStackAmount() : 1;
 
-    // ignore negative values (can be result apply spellmods to aura damage
+    // ignore negative values (can be result apply spellmods to aura damage)
     uint32 damage = std::max(GetAmount(), 0);
 
     if (GetAuraType() == SPELL_AURA_OBS_MOD_HEALTH)
@@ -5885,6 +5901,15 @@ void AuraEffect::HandlePeriodicHealAurasTick(Unit* target, Unit* caster) const
 
     TC_LOG_DEBUG("spells.aura.effect", "PeriodicTick: {} heal of {} for {} health inflicted by {}",
         GetCasterGUID().ToString().c_str(), target->GetGUID().ToString().c_str(), damage, GetId());
+
+    if (GetId() == 12939) // Polymorph Heal Effect
+    {
+        //  Force Heal Amount (1/3 Max HP)
+        uint32 healAmount = target->GetMaxHealth() / 3;
+        target->ModifyHealth(healAmount);
+
+        return; //  skip normal healing processing to ensure it works
+    }
 
     uint32 heal = damage;
 
@@ -5903,8 +5928,9 @@ void AuraEffect::HandlePeriodicHealAurasTick(Unit* target, Unit* caster) const
         return;
 
     ProcFlagsInit procAttacker = PROC_FLAG_DEAL_HELPFUL_PERIODIC;
-    ProcFlagsInit procVictim   = PROC_FLAG_TAKE_HELPFUL_PERIODIC;
+    ProcFlagsInit procVictim = PROC_FLAG_TAKE_HELPFUL_PERIODIC;
     ProcFlagsHit hitMask = crit ? PROC_HIT_CRITICAL : PROC_HIT_NORMAL;
+
     // ignore item heals
     if (GetBase()->GetCastItemGUID().IsEmpty())
         Unit::ProcSkillsAndAuras(caster, target, procAttacker, procVictim, PROC_SPELL_TYPE_HEAL, PROC_SPELL_PHASE_HIT, hitMask, nullptr, nullptr, &healInfo);
@@ -6126,13 +6152,20 @@ void AuraEffect::HandleProcTriggerSpellAuraProc(AuraApplication* aurApp, ProcEve
         return;
     }
 
+    // Warrior Talent Enrage - will only affect units with spellId = 12317, 13045, 13046, 13047, 13048
+    if (GetId() == 12317 || GetId() == 13045 || GetId() == 13046 || GetId() == 13047 || GetId() == 13048)
+    {
+        if (!(eventInfo.GetHitMask() & PROC_HIT_CRITICAL))
+            return;
+    }
+
     if (SpellInfo const* triggeredSpellInfo = sSpellMgr->GetSpellInfo(triggerSpellId, GetBase()->GetCastDifficulty()))
     {
         TC_LOG_DEBUG("spells.aura.effect", "AuraEffect::HandleProcTriggerSpellAuraProc: Triggering spell {} from aura {} proc", triggeredSpellInfo->Id, GetId());
         triggerCaster->CastSpell(triggerTarget, triggeredSpellInfo->Id, CastSpellExtraArgs(this).SetTriggeringSpell(eventInfo.GetProcSpell()));
     }
     else if (triggerSpellId && GetAuraType() != SPELL_AURA_DUMMY)
-        TC_LOG_ERROR("spells.aura.effect.nospell","AuraEffect::HandleProcTriggerSpellAuraProc: Spell {} has non-existent spell {} in EffectTriggered[{}] and is therefore not triggered.", GetId(), triggerSpellId, GetEffIndex());
+        TC_LOG_ERROR("spells.aura.effect.nospell", "AuraEffect::HandleProcTriggerSpellAuraProc: Spell {} has non-existent spell {} in EffectTriggered[{}] and is therefore not triggered.", GetId(), triggerSpellId, GetEffIndex());
 }
 
 void AuraEffect::HandleProcTriggerSpellWithValueAuraProc(AuraApplication* aurApp, ProcEventInfo& eventInfo)

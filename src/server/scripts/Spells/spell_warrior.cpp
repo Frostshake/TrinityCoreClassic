@@ -34,8 +34,14 @@
 enum WarriorSpells
 {
     SPELL_WARRIOR_BLADESTORM_PERIODIC_WHIRLWIND = 50622,
-    SPELL_WARRIOR_BLOODTHIRST = 23885,
-    SPELL_WARRIOR_BLOODTHIRST_DAMAGE = 23881,
+    SPELL_WARRIOR_BLOODTHIRST_R1 = 23881,
+    SPELL_WARRIOR_BLOODTHIRST_R2 = 23892,
+    SPELL_WARRIOR_BLOODTHIRST_R3 = 23893,
+    SPELL_WARRIOR_BLOODTHIRST_R4 = 23894,
+    SPELL_WARRIOR_BLOODTHIRST_HEAL_R1 = 23885,
+    SPELL_WARRIOR_BLOODTHIRST_HEAL_R2 = 23886,
+    SPELL_WARRIOR_BLOODTHIRST_HEAL_R3 = 23887,
+    SPELL_WARRIOR_BLOODTHIRST_HEAL_R4 = 23888,
     SPELL_WARRIOR_BLOODSURGE_R1 = 46913,
     SPELL_WARRIOR_CHARGE = 34846,
     SPELL_WARRIOR_DAMAGE_SHIELD_DAMAGE = 59653,
@@ -88,52 +94,53 @@ enum MiscSpells
     SPELL_CATEGORY_SHIELD_SLAM = 1209
 };
 
-// 23881 - Bloodthirst
+// - Rank 1 - 23881, Rank 2 - 23892, Rank 3 - 23893, Rank 4 - 23894 Bloodthirst
 class spell_warr_bloodthirst : public SpellScript
 {
     PrepareSpellScript(spell_warr_bloodthirst);
 
     void HandleDamage(SpellEffIndex /*effIndex*/)
     {
-        uint32 APbonus = GetCaster()->GetTotalAttackPowerValue(BASE_ATTACK);
-        if (Unit* victim = GetHitUnit())
+        Unit* caster = GetCaster();
+        if (!caster)
+            return;
+
+        uint32 APbonus = caster->GetTotalAttackPowerValue(BASE_ATTACK);
+        Unit* victim = GetHitUnit();
+
+        if (victim)
             APbonus += victim->GetTotalAuraModifier(SPELL_AURA_MELEE_ATTACK_POWER_ATTACKER_BONUS);
 
         SetEffectValue(CalculatePct(APbonus, GetEffectValue()));
+
+        // Manually trigger the healing effect
+        HandleDummy();
     }
 
-    void HandleDummy(SpellEffIndex /*effIndex*/)
+    void HandleDummy()
     {
-        GetCaster()->CastSpell(GetCaster(), SPELL_WARRIOR_BLOODTHIRST, true);
+        Unit* caster = GetCaster();
+        if (!caster)
+            return;
+
+        uint32 spellId = GetSpellInfo()->GetFirstRankSpell()->Id;
+        uint32 healSpellId = 0;
+
+        switch (spellId)
+        {
+        case SPELL_WARRIOR_BLOODTHIRST_R1: healSpellId = SPELL_WARRIOR_BLOODTHIRST_HEAL_R1; break;
+        case SPELL_WARRIOR_BLOODTHIRST_R2: healSpellId = SPELL_WARRIOR_BLOODTHIRST_HEAL_R2; break;
+        case SPELL_WARRIOR_BLOODTHIRST_R3: healSpellId = SPELL_WARRIOR_BLOODTHIRST_HEAL_R3; break;
+        case SPELL_WARRIOR_BLOODTHIRST_R4: healSpellId = SPELL_WARRIOR_BLOODTHIRST_HEAL_R4; break;
+        default: return;
+        }
+
+        caster->CastSpell(caster, healSpellId, true);
     }
 
     void Register() override
     {
         OnEffectLaunchTarget += SpellEffectFn(spell_warr_bloodthirst::HandleDamage, EFFECT_0, SPELL_EFFECT_SCHOOL_DAMAGE);
-        OnEffectHit += SpellEffectFn(spell_warr_bloodthirst::HandleDummy, EFFECT_1, SPELL_EFFECT_DUMMY);
-    }
-};
-
-// 23880 - Bloodthirst (Heal)
-class spell_warr_bloodthirst_heal : public SpellScript
-{
-    PrepareSpellScript(spell_warr_bloodthirst_heal);
-
-    bool Validate(SpellInfo const* /*spellInfo*/) override
-    {
-        return ValidateSpellInfo({ SPELL_WARRIOR_BLOODTHIRST_DAMAGE });
-    }
-
-    void HandleHeal(SpellEffIndex /*effIndex*/)
-    {
-        SpellInfo const* spellInfo = sSpellMgr->AssertSpellInfo(SPELL_WARRIOR_BLOODTHIRST_DAMAGE, GetCastDifficulty());
-        int32 const healPct = spellInfo->GetEffect(EFFECT_1).CalcValue(GetCaster());
-        SetEffectValue(GetCaster()->CountPctFromMaxHealth(healPct));
-    }
-
-    void Register() override
-    {
-        OnEffectLaunchTarget += SpellEffectFn(spell_warr_bloodthirst_heal::HandleHeal, EFFECT_0, SPELL_EFFECT_HEAL);
     }
 };
 
@@ -923,7 +930,6 @@ class spell_warr_vigilance_trigger : public SpellScript
 void AddSC_warrior_spell_scripts()
 {
     RegisterSpellScript(spell_warr_bloodthirst);
-    RegisterSpellScript(spell_warr_bloodthirst_heal);
     RegisterSpellScript(spell_warr_charge);
     RegisterSpellScript(spell_warr_concussion_blow);
     RegisterSpellScript(spell_warr_deep_wounds);
